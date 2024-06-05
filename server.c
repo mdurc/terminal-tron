@@ -11,15 +11,18 @@ typedef struct {
     int sockfd,id;
     char shape;
     int x,y,size;
+
+    // used to keep track of path for clearing when they die. Also possibly for better collision, though not necessary.
     vec path[MAX_LEN];
+
     vec dir;
 } client_t;
 
 // Globals:
 char map[MAP_HEIGHT][MAP_WIDTH];
-client_t CLIENTS[PLAYER_COUNT];
+client_t CLIENTS[MAX_PLAYERS];
 const char user_chars[2] = {'@', '#'};
-int PLAYING = 1;
+int SERVER_RUNNING = 1;
 
 // Functions:
 
@@ -31,9 +34,6 @@ void fill_map() {
             map[i][j] = '.';
         }
     }    
-    for(i=0;i<PLAYER_COUNT;++i){
-        map[CLIENTS[i].y][CLIENTS[i].x] = CLIENTS[i].shape;
-    }
 }
 
 
@@ -45,8 +45,10 @@ void respawn_player(client_t* usr){
     }
 
     // Generate random starting coords
-    usr->x = rand() % MAP_WIDTH;
-    usr->y = rand() % MAP_HEIGHT;
+    do{
+        usr->x = rand() % MAP_WIDTH;
+        usr->y = rand() % MAP_HEIGHT;
+    }while(map[usr->y][usr->x]!='.'); // place in an open square
 
     map[usr->y][usr->x] = usr->shape; // place the new spawn location
 
@@ -86,7 +88,7 @@ void update_game_state(client_t* usr){
     usr->path[usr->size] = (vec){usr->x, usr->y};
     if(++usr->size >= MAX_LEN){
         printf("Client %d wins\n", usr->id);
-        PLAYING = 0;
+        SERVER_RUNNING = 0;
     }
 }
 
@@ -103,13 +105,21 @@ int validNewDirection(vec* curr, vec* new){
 
 
 void start_processes() {
+
+    // initialize map with '.'
     fill_map();
 
-    while(PLAYING){
+    // give default starting values to all players
+    int i;
+    for(i=0;i<MAX_PLAYERS;++i){
+        respawn_player(&CLIENTS[i]);
+    }
+
+    while(SERVER_RUNNING){
         // Send the same map to all clients
         int i;
         vec newInput;
-        for(i=0;i<PLAYER_COUNT;++i){
+        for(i=0;i<MAX_PLAYERS;++i){
             // send out the current map
             write(CLIENTS[i].sockfd, map, sizeof(map));
             // read the next movement
@@ -121,7 +131,7 @@ void start_processes() {
             //printf("{%d, %d} in direction: {%d, %d}\n", CLIENTS[i].x, CLIENTS[i].y, CLIENTS[i].dir.x, CLIENTS[i].dir.y);
             //printf("Game state sent to client #%d.\n", i);
         }
-        for(i=0;i<PLAYER_COUNT;++i){
+        for(i=0;i<MAX_PLAYERS;++i){
             // update based on the input
             update_game_state(&CLIENTS[i]);
         }
@@ -134,8 +144,7 @@ int main() {
     int server_fd, new_socket;
     struct sockaddr_in address;
     int addrlen = sizeof(address);
-    char map[MAP_HEIGHT][MAP_WIDTH];
-    int start_x, start_y;
+
     srand(time(NULL));
 
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -159,11 +168,11 @@ int main() {
         return 1;
     }
 
-    printf("Waiting for a connection...\n");
+    printf("Waiting for a connection from %d clients...\n", MAX_PLAYERS);
 
     // accepts two clients
     int num_players=0;
-    for(;num_players<2;++num_players) {
+    for(;num_players<MAX_PLAYERS;++num_players) {
         if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0) {
             perror("accept");
             close(server_fd);
@@ -174,7 +183,7 @@ int main() {
         CLIENTS[num_players].sockfd = new_socket;
         CLIENTS[num_players].id = num_players;
         CLIENTS[num_players].shape = user_chars[num_players];
-        respawn_player(&CLIENTS[num_players]);
+        CLIENTS[num_players].size = 0;
     }
     printf("Starting Game\n");
     start_processes();

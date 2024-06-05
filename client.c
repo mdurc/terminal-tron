@@ -9,7 +9,7 @@ void display_game_state(char map[MAP_HEIGHT][MAP_WIDTH]) {
     int i,j;
     for(i=0;i<MAP_HEIGHT;++i){
         for(j=0;j<MAP_WIDTH;++j){
-            mvaddch(i, j, map[i][j]);
+            mvaddch(i+2, j+5, map[i][j]);
         }
     }
     refresh();
@@ -31,7 +31,6 @@ int main() {
     int sock = 0;
     struct sockaddr_in serv_addr;
     char map[MAP_HEIGHT][MAP_WIDTH];
-    int start_x, start_y;
 
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         printf("\n Socket creation error \n");
