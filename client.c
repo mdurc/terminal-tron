@@ -6,19 +6,25 @@
 #include "game_options.h"
 
 void display_game_state(char map[MAP_HEIGHT][MAP_WIDTH]) {
-    initscr();
-    noecho();
-    curs_set(FALSE);
-
-    // Display the map
-    for (int i = 0; i < MAP_HEIGHT; ++i) {
-        for (int j = 0; j < MAP_WIDTH; ++j) {
+    int i,j;
+    for(i=0;i<MAP_HEIGHT;++i){
+        for(j=0;j<MAP_WIDTH;++j){
             mvaddch(i, j, map[i][j]);
         }
     }
-
-    // Refresh to show the changes
     refresh();
+}
+
+
+vec readInput(WINDOW** win) {
+    int pressed = wgetch(*win);
+    vec dir;
+    if (pressed == KEY_LEFT) { dir.x = -1; dir.y = 0; }
+    else if (pressed == KEY_RIGHT) { dir.x = 1; dir.y = 0; }
+    else if (pressed == KEY_UP) { dir.x = 0; dir.y = -1; }
+    else if (pressed == KEY_DOWN) { dir.x = 0; dir.y = 1; }
+    else { dir.x = 0; dir.y = 0; }
+    return dir;
 }
 
 int main() {
@@ -45,9 +51,17 @@ int main() {
         return -1;
     }
 
+    WINDOW* win = initscr();
+    keypad(win, true);
+    noecho();
+    nodelay(win, true);
+    curs_set(0);
+
     while(1){
+        vec in = readInput(&win);
         read(sock, map, sizeof(map));
         display_game_state(map);
+        write(sock, &in, sizeof(vec));
     }
 
     endwin();

@@ -7,9 +7,6 @@
 
 #include "game_options.h"
 
-typedef struct{
-    int x,y;
-} vec;
 typedef struct {
     int sockfd,id;
     char shape;
@@ -23,23 +20,23 @@ const char user_chars[2] = {'@', '#'};
 
 void gen_map(char map[MAP_HEIGHT][MAP_WIDTH]) {
     // Initialize map with empty spaces
-    for (int i = 0; i < MAP_HEIGHT; ++i) {
-        for (int j = 0; j < MAP_WIDTH; ++j) {
+    int i,j;
+    for(i=0;i<MAP_HEIGHT;++i){
+        for(j=0;j<MAP_WIDTH;++j){
             map[i][j] = '.';
         }
     }    
+    for(i=0;i<PLAYER_COUNT;++i){
+        map[CLIENTS[i].y][CLIENTS[i].x] = CLIENTS[i].shape;
+    }
 }
 
 void update_game_state(char map[MAP_HEIGHT][MAP_WIDTH], client_t* usr){
-    map[usr->y][usr->x] = usr->shape;
-    int direction = rand()%4;
-    switch (direction) {
-        case 0: usr->y = (usr->y - 1 + MAP_HEIGHT) % MAP_HEIGHT; break;
-        case 1: usr->y = (usr->y + 1) % MAP_HEIGHT; break;
-        case 2: usr->x = (usr->x - 1 + MAP_WIDTH) % MAP_WIDTH; break;
-        case 3: usr->x = (usr->x + 1) % MAP_WIDTH; break;
-    }
+    // wrap around if they go out of bounds
+    usr->y = (usr->y + usr->dir.y + MAP_HEIGHT) % MAP_HEIGHT;
+    usr->x = (usr->x + usr->dir.x + MAP_WIDTH) % MAP_WIDTH;
 
+    map[usr->y][usr->x] = usr->shape;
     // keep track of all the spots the bike has traveled.
     usr->path[usr->size] = (vec){usr->x, usr->y};
     if(++usr->size >= MAX_LEN){
@@ -58,12 +55,18 @@ void start_processes() {
     while(1){
         // Send the same map to all clients
         int i;
+        vec newInput;
         for(i=0;i<PLAYER_COUNT;++i){
-            update_game_state(map,&CLIENTS[i]);
+            // send out the current map
+            write(CLIENTS[i].sockfd, map, sizeof(map));
+            // read the next movement
+            read(CLIENTS[i].sockfd, &newInput, sizeof(vec));
+            if(!(newInput.x == 0 && newInput.y == 0)){ CLIENTS[i].dir = newInput; }
+            //printf("Game state sent to client #%d.\n", i);
         }
         for(i=0;i<PLAYER_COUNT;++i){
-            write(CLIENTS[i].sockfd, map, sizeof(map));
-            //printf("Game state sent to client #%d.\n", i);
+            // update based on the input
+            update_game_state(map,&CLIENTS[i]);
         }
         usleep(FRAME_TIME);
     }
@@ -74,12 +77,13 @@ void create_player(client_t* usr, int* new_socket, int num_players){
     usr->sockfd = *new_socket;
     usr->id = num_players;
     usr->shape = user_chars[num_players];
-    // Generate random starting coordinate
+    // Generate random starting coords
     usr->x = rand() % MAP_WIDTH;
     usr->y = rand() % MAP_HEIGHT;
     usr->path[0] = (vec){usr->x,usr->y};
     usr->size=1;
 
+    // make a random starting direction
     do{ usr->dir = (vec){rand() % 3 - 1, rand() % 3 - 1}; }
     while(!((usr->dir.x==0 && usr->dir.y!=0) || (usr->dir.x!=0 && usr->dir.y==0)));
 }

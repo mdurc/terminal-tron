@@ -10,6 +10,9 @@
 #define MAX_LEN 256
 #define FRAME_TIME 110000
 
+typedef struct{
+    int x,y;
+} vec;
 
 
 #endif
