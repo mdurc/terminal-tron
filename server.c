@@ -23,6 +23,7 @@ char map[MAP_HEIGHT][MAP_WIDTH];
 client_t CLIENTS[MAX_PLAYERS];
 const char user_chars[2] = {'@', '#'};
 int SERVER_RUNNING = 1;
+int LOBBY_SIZE = 2;
 
 // Functions:
 
@@ -111,7 +112,7 @@ void start_processes() {
 
     // give default starting values to all players
     int i;
-    for(i=0;i<MAX_PLAYERS;++i){
+    for(i=0;i<LOBBY_SIZE;++i){
         respawn_player(&CLIENTS[i]);
     }
 
@@ -119,7 +120,7 @@ void start_processes() {
         // Send the same map to all clients
         int i;
         vec newInput;
-        for(i=0;i<MAX_PLAYERS;++i){
+        for(i=0;i<LOBBY_SIZE;++i){
             // send out the current map
             write(CLIENTS[i].sockfd, map, sizeof(map));
             // read the next movement
@@ -131,7 +132,7 @@ void start_processes() {
             //printf("{%d, %d} in direction: {%d, %d}\n", CLIENTS[i].x, CLIENTS[i].y, CLIENTS[i].dir.x, CLIENTS[i].dir.y);
             //printf("Game state sent to client #%d.\n", i);
         }
-        for(i=0;i<MAX_PLAYERS;++i){
+        for(i=0;i<LOBBY_SIZE;++i){
             // update based on the input
             update_game_state(&CLIENTS[i]);
         }
@@ -140,10 +141,18 @@ void start_processes() {
 
 }
 
-int main() {
+int main(int argc, char** argv) {
     int server_fd, new_socket;
     struct sockaddr_in address;
     int addrlen = sizeof(address);
+
+    if(argc>1){
+        LOBBY_SIZE = atoi(argv[1]);
+        if(LOBBY_SIZE > MAX_PLAYERS){
+            printf("Max players is %d", MAX_PLAYERS);
+            LOBBY_SIZE = MAX_PLAYERS;
+        }
+    }
 
     srand(time(NULL));
 
@@ -168,11 +177,11 @@ int main() {
         return 1;
     }
 
-    printf("Waiting for a connection from %d clients...\n", MAX_PLAYERS);
+    printf("Waiting for a connection from %d clients...\n", LOBBY_SIZE);
 
     // accepts two clients
     int num_players=0;
-    for(;num_players<MAX_PLAYERS;++num_players) {
+    for(;num_players<LOBBY_SIZE;++num_players) {
         if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0) {
             perror("accept");
             close(server_fd);
