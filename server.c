@@ -59,27 +59,14 @@ void respawn_player(client_t* usr){
 
 
 int find_collisions(client_t* usr){
-    // check for collisions with self.
-    // usr->size-1 is the head (exclude it in checking)
-    int i, z=usr->size-2;
-    vec* head = &usr->path[z+1];
-    for(i=0;i<z;++i){
-        if(head->x == usr->path[i].x && head->y == usr->path[i].y){
-            printf("collided with self\n");
-            return 1;
-        }
+    vec* head = &usr->path[usr->size-1];
+    if(map[head->y][head->x] == usr->shape){
+        printf("Client %d collided with self\n", usr->id);
+        return 1;
     }
-    for(i=0;i<PLAYER_COUNT;++i){
-        if(usr->id == CLIENTS[i].id){
-            continue;
-        }
-        // go through all the coordinates of the other path
-        int j,z=CLIENTS[i].size-1;
-        for(j=0;j<z;++j){
-            if(head->x == CLIENTS[i].path[j].x && head->y == CLIENTS[i].path[j].y){
-                return 1;
-            }
-        }
+    else if(map[head->y][head->x] != '.'){
+        printf("Client %d collided with opponent\n", usr->id);
+        return 1;
     }
     return 0;
 }
