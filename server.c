@@ -15,12 +15,15 @@ typedef struct {
     vec dir;
 } client_t;
 
+// Globals:
+char map[MAP_HEIGHT][MAP_WIDTH];
 client_t CLIENTS[PLAYER_COUNT];
 const char user_chars[2] = {'@', '#'};
-
 int PLAYING = 1;
 
-void gen_map(char map[MAP_HEIGHT][MAP_WIDTH]) {
+// Functions:
+
+void fill_map() {
     // Initialize map with empty spaces
     int i,j;
     for(i=0;i<MAP_HEIGHT;++i){
@@ -34,6 +37,27 @@ void gen_map(char map[MAP_HEIGHT][MAP_WIDTH]) {
 }
 
 
+void respawn_player(client_t* usr){
+    // clear previous path on the map
+    int i,z=usr->size-1;
+    for(i=0;i<z;++i){
+        map[usr->path[i].y][usr->path[i].x] = '.';
+    }
+
+    // Generate random starting coords
+    usr->x = rand() % MAP_WIDTH;
+    usr->y = rand() % MAP_HEIGHT;
+
+    map[usr->y][usr->x] = usr->shape; // place the new spawn location
+
+    usr->path[0] = (vec){usr->x,usr->y};
+    usr->size=1;
+    // make a random starting direction
+    do{ usr->dir = (vec){rand() % 3 - 1, rand() % 3 - 1}; }
+    while(!((usr->dir.x==0 && usr->dir.y!=0) || (usr->dir.x!=0 && usr->dir.y==0)));
+}
+
+
 int find_collisions(client_t* usr){
     // check for collisions with self.
     // usr->size-1 is the head (exclude it in checking)
@@ -41,6 +65,7 @@ int find_collisions(client_t* usr){
     vec* head = &usr->path[z+1];
     for(i=0;i<z;++i){
         if(head->x == usr->path[i].x && head->y == usr->path[i].y){
+            printf("collided with self\n");
             return 1;
         }
     }
@@ -59,19 +84,19 @@ int find_collisions(client_t* usr){
     return 0;
 }
 
-void update_game_state(char map[MAP_HEIGHT][MAP_WIDTH], client_t* usr){
+void update_game_state(client_t* usr){
     // wrap around if they go out of bounds
     usr->y = (usr->y + usr->dir.y + MAP_HEIGHT) % MAP_HEIGHT;
     usr->x = (usr->x + usr->dir.x + MAP_WIDTH) % MAP_WIDTH;
 
-    map[usr->y][usr->x] = usr->shape;
-
     if(find_collisions(usr)){
+        // this is the only loss condition
         printf("Client %d died\n", usr->id);
-        PLAYING = 0;
+        respawn_player(usr);
         return;
     }
 
+    map[usr->y][usr->x] = usr->shape;
     // keep track of all the spots the bike has traveled.
     usr->path[usr->size] = (vec){usr->x, usr->y};
     if(++usr->size >= MAX_LEN){
@@ -80,10 +105,20 @@ void update_game_state(char map[MAP_HEIGHT][MAP_WIDTH], client_t* usr){
     }
 }
 
+int validNewDirection(vec* curr, vec* new){
+    if(new->x == 0 && new->y == 0){
+        // when the input is not one of the arrow keys, or is invalid
+        return 0;
+    }else if((abs(curr->x)+abs(new->x)==2)||(abs(curr->y)+abs(new->y)==2)){
+        // trying to move in the opposite or same direction
+        return 0;
+    }
+    return 1;
+}
+
 
 void start_processes() {
-    char map[MAP_HEIGHT][MAP_WIDTH];
-    gen_map(map);
+    fill_map();
 
     while(PLAYING){
         // Send the same map to all clients
@@ -94,31 +129,20 @@ void start_processes() {
             write(CLIENTS[i].sockfd, map, sizeof(map));
             // read the next movement
             read(CLIENTS[i].sockfd, &newInput, sizeof(vec));
-            if(!(newInput.x == 0 && newInput.y == 0)){ CLIENTS[i].dir = newInput; }
+            if(validNewDirection(&CLIENTS[i].dir, &newInput)){
+                CLIENTS[i].dir = newInput;
+            }
+
+            //printf("{%d, %d} in direction: {%d, %d}\n", CLIENTS[i].x, CLIENTS[i].y, CLIENTS[i].dir.x, CLIENTS[i].dir.y);
             //printf("Game state sent to client #%d.\n", i);
         }
         for(i=0;i<PLAYER_COUNT;++i){
             // update based on the input
-            update_game_state(map,&CLIENTS[i]);
+            update_game_state(&CLIENTS[i]);
         }
         usleep(FRAME_TIME);
     }
 
-}
-
-void create_player(client_t* usr, int* new_socket, int num_players){
-    usr->sockfd = *new_socket;
-    usr->id = num_players;
-    usr->shape = user_chars[num_players];
-    // Generate random starting coords
-    usr->x = rand() % MAP_WIDTH;
-    usr->y = rand() % MAP_HEIGHT;
-    usr->path[0] = (vec){usr->x,usr->y};
-    usr->size=1;
-
-    // make a random starting direction
-    do{ usr->dir = (vec){rand() % 3 - 1, rand() % 3 - 1}; }
-    while(!((usr->dir.x==0 && usr->dir.y!=0) || (usr->dir.x!=0 && usr->dir.y==0)));
 }
 
 int main() {
@@ -162,7 +186,10 @@ int main() {
         }
 
         printf("Client #%d joined\n", num_players);
-        create_player(&CLIENTS[num_players], &new_socket, num_players);
+        CLIENTS[num_players].sockfd = new_socket;
+        CLIENTS[num_players].id = num_players;
+        CLIENTS[num_players].shape = user_chars[num_players];
+        respawn_player(&CLIENTS[num_players]);
     }
     printf("Starting Game\n");
     start_processes();
