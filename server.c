@@ -18,6 +18,8 @@ typedef struct {
 client_t CLIENTS[PLAYER_COUNT];
 const char user_chars[2] = {'@', '#'};
 
+int PLAYING = 1;
+
 void gen_map(char map[MAP_HEIGHT][MAP_WIDTH]) {
     // Initialize map with empty spaces
     int i,j;
@@ -31,28 +33,59 @@ void gen_map(char map[MAP_HEIGHT][MAP_WIDTH]) {
     }
 }
 
+
+int find_collisions(client_t* usr){
+    // check for collisions with self.
+    // usr->size-1 is the head (exclude it in checking)
+    int i, z=usr->size-2;
+    vec* head = &usr->path[z+1];
+    for(i=0;i<z;++i){
+        if(head->x == usr->path[i].x && head->y == usr->path[i].y){
+            return 1;
+        }
+    }
+    for(i=0;i<PLAYER_COUNT;++i){
+        if(usr->id == CLIENTS[i].id){
+            continue;
+        }
+        // go through all the coordinates of the other path
+        int j,z=CLIENTS[i].size-1;
+        for(j=0;j<z;++j){
+            if(head->x == CLIENTS[i].path[j].x && head->y == CLIENTS[i].path[j].y){
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 void update_game_state(char map[MAP_HEIGHT][MAP_WIDTH], client_t* usr){
     // wrap around if they go out of bounds
     usr->y = (usr->y + usr->dir.y + MAP_HEIGHT) % MAP_HEIGHT;
     usr->x = (usr->x + usr->dir.x + MAP_WIDTH) % MAP_WIDTH;
 
     map[usr->y][usr->x] = usr->shape;
+
+    if(find_collisions(usr)){
+        printf("Client %d died\n", usr->id);
+        PLAYING = 0;
+        return;
+    }
+
     // keep track of all the spots the bike has traveled.
     usr->path[usr->size] = (vec){usr->x, usr->y};
     if(++usr->size >= MAX_LEN){
-        printf("Client %d wins", usr->id);
-        exit(0);
+        printf("Client %d wins\n", usr->id);
+        PLAYING = 0;
     }
 }
 
 
 void start_processes() {
     char map[MAP_HEIGHT][MAP_WIDTH];
-    int start_x, start_y;
     gen_map(map);
 
-
-    while(1){
+    while(PLAYING){
         // Send the same map to all clients
         int i;
         vec newInput;
