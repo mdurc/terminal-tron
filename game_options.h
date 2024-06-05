@@ -1,5 +1,5 @@
-#ifndef NETWORK_H
-#define NETWORK_H
+#ifndef GAME_OPTIONS_H
+#define GAME_OPTIONS_H
 
 
 #define PORT 8080
