@@ -21,7 +21,7 @@ typedef struct {
 // Globals:
 char map[MAP_HEIGHT][MAP_WIDTH];
 client_t CLIENTS[MAX_PLAYERS];
-const char user_chars[2] = {'@', '#'};
+const char user_chars[MAX_PLAYERS] = {'@', '#', '$', '%', '0', '&', '?', '$', '*', '='};
 int SERVER_RUNNING = 1;
 int LOBBY_SIZE = 2;
 
