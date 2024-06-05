@@ -39,7 +39,7 @@ void fill_map() {
 
 void respawn_player(client_t* usr){
     // clear previous path on the map
-    int i,z=usr->size-1;
+    int i,z=usr->size;
     for(i=0;i<z;++i){
         map[usr->path[i].y][usr->path[i].x] = '.';
     }
@@ -59,12 +59,11 @@ void respawn_player(client_t* usr){
 
 
 int find_collisions(client_t* usr){
-    vec* head = &usr->path[usr->size-1];
-    if(map[head->y][head->x] == usr->shape){
+    if(map[usr->y][usr->x] == usr->shape){
         printf("Client %d collided with self\n", usr->id);
         return 1;
     }
-    else if(map[head->y][head->x] != '.'){
+    else if(map[usr->y][usr->x] != '.'){
         printf("Client %d collided with opponent\n", usr->id);
         return 1;
     }
@@ -78,7 +77,6 @@ void update_game_state(client_t* usr){
 
     if(find_collisions(usr)){
         // this is the only loss condition
-        printf("Client %d died\n", usr->id);
         respawn_player(usr);
         return;
     }
